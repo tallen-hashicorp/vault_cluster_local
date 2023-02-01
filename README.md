@@ -1,3 +1,13 @@
+# Running Vault Localy
+
+```bash
+vault server -dev
+```
+
+```bash
+vault server -dev -dev-root-token-id=root -dev-ha -dev-transactional -dev-listen-address=127.0.0.1:8200
+```
+
 ## Simple Method
 
 * In memory storage - not persistent
@@ -102,3 +112,59 @@ vault operator init -recovery-shares=1 -recovery-threshold=1
 
 ## Final Setup
 ![Final Setip Image](docs/Screenshot%202023-02-01%20at%2015.58.56.png)
+
+## Run by hand
+```bash
+mkdir -p data/node1
+mkdir -p data/node2
+mkdir -p data/node3
+
+sudo ifconfig lo0 alias 127.0.0.2
+sudo ifconfig lo0 alias 127.0.0.3
+sudo ifconfig lo0 alias 127.0.0.4
+ifconfig lo0
+
+hosts --auto-sudo add 127.0.0.1 vault1.local
+hosts --auto-sudo add 127.0.0.2 vault2.local
+hosts --auto-sudo add 127.0.0.3 vault3.local
+hosts --auto-sudo add 127.0.0.4 vault4.local
+
+mkcert -install
+mkcert vault.local vault1.local vault2.local vault3.local 127.0.0.1 127.0.0.2 127.0.0.3
+
+consul agent -dev
+
+vault server -dev -dev-root-token-id=root -dev-listen-address=vault4.local:8200 -dev-consul 
+
+VAULT_ADDR=http://vault4.local:8200 vault secrets enable transit
+
+vault server  -config config/vault1.hcl
+
+vault server  -config config/vault2.hcl
+
+vault server  -config config/vault3.hcl
+
+fabio -proxy.addr=":9200;proto=tcp"
+
+VAULT_ADDR=https://vault1.local:8200 vault operator init -recovery-shares=1 -recovery-threshold=1
+
+VAULT_ADDR=https://vault1.local:8200 vault login
+
+VAULT_ADDR=https://vault1.local:8200 vault operator members
+VAULT_ADDR=https://vault1.local:8200 vault operator raft list-peers
+```
+
+## Clean by hand
+```bash
+rm -r data
+
+hosts --auto-sudo remove 127.0.0.1 vault1.local
+hosts --auto-sudo remove 127.0.0.2 vault2.local
+hosts --auto-sudo remove 127.0.0.3 vault3.local
+hosts --auto-sudo remove 127.0.0.4 vault4.local
+
+sudo ifconfig lo0 -alias 127.0.0.2
+sudo ifconfig lo0 -alias 127.0.0.3
+sudo ifconfig lo0 -alias 127.0.0.4
+ifconfig lo0
+```
